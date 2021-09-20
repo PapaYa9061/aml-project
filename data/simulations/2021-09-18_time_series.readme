@@ -1,0 +1,18 @@
+Created 2021-09-18T12:06:17.218306
+Parameters:
+n_series=10000
+n_steps=60
+pop_size_dist=uniform_int(750, 3001)
+degree_dist=uniform(2, 20)
+transmit_prob_dist=uniform(0.001, 0.1)
+infect_time_dist=uniform_int(4, 13)
+init_infect_dist=uniform_int(1, 10)
+
+The data is a numpy array of shape (n_series, n_steps, d).
+d=6 is the size of the simulation's state vector at each time step, consisting of
+0 - Susceptible population
+1 - Infected population
+2 - Recovered population
+3 - Average degree of the network graph
+4 - Probability of transmission to adjacent susceptible nodes per time step
+5 - Duration of infection in time steps before a node recovers
