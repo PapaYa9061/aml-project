@@ -36,6 +36,21 @@ Later points are optional and will be tackled as long as our time budget of ~90 
 - Retrain & evaluate surrogate model
 - Compare predicted case series with real-world COVID-19 data.
 
+## Tasks
+
+- [ ] Update simulation to allow parameter change (Fabian)
+- [ ] Measure computational performance of simulation (Fabian)
+- [ ] Uncertainty estimate of simulation (Fabian)
+- [ ] Alternative approach: RNN (Falk)
+- [ ] Alternative approach: Feedforward NN (Falk)
+- [ ] LSTM Hyperparameter tuning (Yannick)
+- [ ] Report: LSTM approach (Yannick)
+- [ ] Report: Introduction (Falk)
+- [ ] Report: Related work (Yannick/Falk)
+- [ ] Report: Method - Network based simulation (Fabian)
+
+Next meeting: Wed, 18:00
+
 
 ## Notes
 
