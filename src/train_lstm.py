@@ -7,22 +7,37 @@ import numpy as np
 import torch
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
+import time
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+
+# Dataset processing
+
+def subsample(samples: int, *arr):
+    result = []
+    for a in arr:
+        indices = np.random.default_rng().permutation(np.arange(a.shape[1]))[:samples]
+        a = a[:, indices, :]
+        result.append(a)
+    if len(result) == 1:
+        return result[0]
+    return tuple(result)
 
 
 def normalize(arr):
     pop_size = np.sum(arr, axis=2, keepdims=True)
     arr[:, :, 0:4] /= pop_size
-    arr[:, :, 5] /= 100
+    arr[:, :, 5] /= 20
     return arr
 
 
-def load_dataset(file: str, seq_len=0) -> Tuple[np.ndarray, np.ndarray]:
+def load_dataset(file: str, seq_len=0, omit_recovered=False) -> Tuple[np.ndarray, np.ndarray]:
     """
     Loads the given simulated time series data of shape (N, L, D) and splits it into features (x_t) and labels (x_t+1).
     From each of the N time series all sequences of length seq_len are extracted.
     If seq_len <= 0, it defaults to L-1, i.e. each complete time series is turned into one training sequence.
+    :param omit_recovered:
     :param file:
     :param seq_len:
     :return: x - numpy array of dimensions (N * (L-seq_len), seq_len, D)
@@ -30,60 +45,23 @@ def load_dataset(file: str, seq_len=0) -> Tuple[np.ndarray, np.ndarray]:
     """
     arr = normalize(np.load(file)['arr_0'])
     N, L, D = arr.shape
+    d = 3
     if seq_len <= 0:
         seq_len = L - 1
+    if omit_recovered:
+        d = 2
+        D = 5
+        arr = np.delete(arr, 2, 2)
+    logging.info('Loaded dataset %s, extracting sequences of length %s, omit_recovered=%s', file, seq_len, omit_recovered)
     L_x = (L - seq_len)
     x = np.zeros((N, L_x, seq_len, D))
-    y = np.zeros((N, L_x, seq_len, 3))
-    for i in range(L_x - 1):
+    y = np.zeros((N, L_x, seq_len, d))
+    for i in range(L_x):
         x[:, i, :, :] = arr[:, i:i + seq_len, :]
-        y[:, i, :, :] = arr[:, i + 1:i + 1 + seq_len, 0:3]
+        y[:, i, :, :] = arr[:, i + 1:i + 1 + seq_len, 0:d]
     x = x.reshape((N * L_x, seq_len, D))
-    y = y.reshape((N * L_x, seq_len, 3))
+    y = y.reshape((N * L_x, seq_len, d))
     return x, y
-
-
-def evaluate(model, test_x, test_y):
-    model.eval()
-    loss = torch.nn.MSELoss()
-    pred, (h_n, c_n) = model(test_x)
-    return loss(pred, test_y).item()
-
-
-def fit_model(model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor, batch_size=20):
-    model.train()
-    loss = torch.nn.MSELoss()
-    optim = torch.optim.Adam(model.parameters())
-    perm = torch.randperm(x.size()[0], device=device)
-
-    for i in range(0, x.size()[0], batch_size):
-        indices = perm[i:i + batch_size]
-        x_batch, y_batch = x[indices], y[indices]
-        model.zero_grad()
-        out, (h_n, c_n) = model(x_batch)
-        err = loss(out, y_batch)
-        err.backward()
-        optim.step()
-
-
-def train_epochs(named_module: NamedModule, train_x, train_y, validate_x, validate_y, epochs=100, batch_size=50):
-    save_every = 10
-    model = named_module.module
-    if torch.cuda.is_available():
-        model.cuda()
-
-    with open(f'data/training/{datetime.datetime.now().isoformat(timespec="minutes").replace(":", "-")}_{named_module.name}.csv',
-              'w') as csv_file:
-        writer = csv.writer(csv_file)
-        writer.writerow(['epoch', 'train loss', 'validation loss'])
-
-        for i in tqdm(range(epochs), 'Training epochs'):
-            fit_model(model, train_x, train_y, batch_size=batch_size)
-            train_loss = evaluate(model, train_x, train_y)
-            validate_loss = evaluate(model, validate_x, validate_y)
-            writer.writerow([i, train_loss, validate_loss])
-            if i % save_every == 0:
-                named_module.save()
 
 
 def split_dataset(x: np.ndarray, y: np.ndarray, train: float, validate: float, test: float):
@@ -93,24 +71,96 @@ def split_dataset(x: np.ndarray, y: np.ndarray, train: float, validate: float, t
     return x_train, x_validate, x_test, y_train, y_validate, y_test
 
 
+def split_dataset_deterministic(x: np.ndarray, y: np.ndarray, train: float, validate: float, test:float):
+    N = x.shape[0]
+    return x[:int(train*N)], x[int(train*N):int((train+validate)*N)], x[int((train+validate)*N):int((train+validate+test)*N)], \
+           y[:int(train*N)], y[int(train*N):int((train+validate)*N)], y[int((train+validate)*N):int((train+validate+test)*N)]
+
+
 def to_torch(*arr):
+    result = []
     for a in arr:
-        yield torch.tensor(a, dtype=torch.float32, device=device)
+        result.append(torch.tensor(a, dtype=torch.float32, device=device))
+    if len(result) == 1:
+        return result[0]
+    return tuple(result)
 
 
-def train(module: NamedModule, dataset: str, subsamples=0, split=(0.7, 0.2, 0.1), seq_len=0, epochs=100, batch_size=50):
-    logging.info("Train module %s on dataset %s with parameters: subsamples=%s, split=%s,"
-                 " seq_len=%s, epochs=%s, batch_size=%s",
-                 module.name, dataset, subsamples, split, seq_len, epochs, batch_size)
+# Training
+
+def evaluate(model, test_x, test_y):
+    model.eval()
+    loss = torch.nn.MSELoss()
+    pred, (h_n, c_n) = model(test_x)
+    return loss(pred, test_y).item()
+
+
+def fit_model(model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor, batch_size=50, lr=1e-3):
+    model.train()
+    loss = torch.nn.MSELoss()
+    optim = torch.optim.Adam(model.parameters(), lr=lr)
+    perm = torch.randperm(x.size()[1], device=device)
+
+    for i in range(0, x.size()[0], batch_size):
+        indices = perm[i:i + batch_size]
+        x_batch, y_batch = x[:, indices, :], y[:, indices, :]
+        model.zero_grad()
+        out, (h_n, c_n) = model(x_batch)
+        err = loss(out, y_batch)
+        err.backward()
+        optim.step()
+
+
+def train_epochs(named_module: NamedModule, train_x, train_y, validate_x, validate_y, epochs=100,
+                 batch_size=50, lr=1e-3):
+    save_every = 10
+    model = named_module.module
+    if torch.cuda.is_available():
+        model.cuda()
+
+    with open(f'data/training/{datetime.datetime.now().isoformat(timespec="minutes").replace(":", "-")}'
+              f'_{named_module.name}.csv', 'w', newline='') as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(['epoch', 'train loss', 'validation loss', 'wall time (seconds)'])
+
+        start = time.perf_counter()
+        for i in tqdm(range(epochs), 'Training epochs'):
+            fit_model(model, train_x, train_y, batch_size=batch_size, lr=lr)
+            train_loss = evaluate(model, train_x, train_y)
+            validate_loss = evaluate(model, validate_x, validate_y)
+            writer.writerow([i, train_loss, validate_loss, time.perf_counter() - start])
+            if i % save_every == 0:
+                named_module.save()
+
+
+def train(module: NamedModule, x_train: torch.Tensor, y_train: torch.Tensor,
+          x_validate: torch.Tensor, y_validate: torch.Tensor,
+          seq_len=0, epochs=100, batch_size=50, lr=1e-3):
+    logging.info("Train module %s on %s instances with parameters: "
+                 "seq_len=%s, epochs=%s, batch_size=%s, lr=%s",
+                 module.name, x_train.size()[0], seq_len, epochs, batch_size, lr)
     try:
-        x, y = load_dataset(dataset, seq_len)
-        if subsamples > 0:
-            indices = np.random.default_rng().permutation(np.arange(x.shape[0]))[:subsamples]
-            x, y = x[indices], y[indices]
-        x_train, x_validate, x_test, y_train, y_validate, y_test = split_dataset(x, y, *split[:3])
-        x_train, x_validate, x_test, y_train, y_validate, y_test = to_torch(x_train, x_validate, x_test, y_train, y_validate, y_test)
-        train_epochs(module, x_train, y_train, x_validate, y_validate, epochs, batch_size)
+        train_epochs(module, x_train, y_train, x_validate, y_validate, epochs, batch_size, lr)
     except BaseException as e:
         logging.error('Unhandled exception during training.', exc_info=e)
         raise e
 
+
+# Evaluation
+
+def predict_series(model: torch.nn.Module, series: torch.Tensor, given_steps=10, input_all=False):
+    pred = torch.zeros((series.size()[0], series.size()[1], series.size()[2]), device=device)
+    pred[:, 0:series.size()[1], -3:] = series[:, :, -3:]
+    pred[:, series.size()[1]:, -3:] = series[:, -2:-1, -3:]
+    pred[:, 0:given_steps, :] = series[:, 0:given_steps, :]
+    for i in range(pred.size()[1] - given_steps):
+        input_start = 0 if input_all else i
+        out, (h_n, c_n) = model(pred[:, input_start:i + given_steps, :])
+        pred[:, i + given_steps:i + given_steps + 1, :-3] = out[:, -1:, :]
+    return pred[:, :, :-3]
+
+
+def ps_loss(model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor, given_steps=10, input_all=False):
+    loss = torch.nn.MSELoss()
+    pred = predict_series(model, x, given_steps, input_all)
+    return loss(pred, y).item()

@@ -1,1 +1,0 @@
-[2021-09-20 17:39:48,421] [train_lstm] [INFO] Train module lstm_test on dataset data/simulations/2021-09-18_time_series.npz with parameters: subsamples=0, split=(0.7, 0.2, 0.1), seq_len=0, epochs=100, batch_size=50

@@ -16,14 +16,14 @@ def plot_series(series):
     return fig, ax
 
 
-def plot_prediction(pred, ground_truth):
+def plot_prediction(pred, ground_truth, infer_recovered=False):
     pred_susceptible = pred[:, 0]
     pred_infected = pred[:, 1]
-    pred_recovered = pred[:, 2] #1 - (np.sum(pred, axis=1))
+    pred_recovered = 1 - (np.sum(pred[:, :2], axis=1)) if infer_recovered else pred[:, 2]
 
     gt_susceptible = ground_truth[:, 0]
     gt_infected = ground_truth[:, 1]
-    gt_recovered = ground_truth[:, 2] #1 - (np.sum(ground_truth, axis=1))
+    gt_recovered = 1 - (np.sum(ground_truth[:, :2], axis=1)) if infer_recovered else ground_truth[:, 2]
 
     fig: plt.Figure
     ax: plt.Axes

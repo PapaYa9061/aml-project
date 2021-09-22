@@ -1,0 +1,25 @@
+[2021-09-22 16:14:37,826] [main] [INFO] Cuda available: True
+[2021-09-22 16:14:37,888] [train_lstm] [INFO] Loaded dataset data/simulations/2021-09-18_time_series.npz, extracting sequences of length 20, omit_recovered=False
+[2021-09-22 16:14:39,919] [train_lstm] [INFO] Train module autoregressive on 20 instances with parameters: seq_len=0, epochs=4000, batch_size=100, lr=0
+[2021-09-22 16:17:04,461] [main] [INFO] Cuda available: True
+[2021-09-22 16:17:04,523] [train_lstm] [INFO] Loaded dataset data/simulations/2021-09-18_time_series.npz, extracting sequences of length 20, omit_recovered=False
+[2021-09-22 16:17:06,570] [train_lstm] [INFO] Train module autoregressive on 20 instances with parameters: seq_len=0, epochs=4000, batch_size=100, lr=0.001
+[2021-09-22 16:19:42,924] [main] [INFO] Cuda available: True
+[2021-09-22 16:19:42,987] [train_lstm] [INFO] Loaded dataset data/simulations/2021-09-18_time_series.npz, extracting sequences of length 20, omit_recovered=False
+[2021-09-22 16:19:45,159] [train_lstm] [INFO] Train module autoregressive on 20 instances with parameters: seq_len=0, epochs=5000, batch_size=100, lr=0.001
+[2021-09-22 16:22:53,842] [main] [INFO] Cuda available: True
+[2021-09-22 16:22:53,905] [train_lstm] [INFO] Loaded dataset data/simulations/2021-09-18_time_series.npz, extracting sequences of length 50, omit_recovered=False
+[2021-09-22 16:22:55,733] [train_lstm] [INFO] Train module autoregressive on 50 instances with parameters: seq_len=0, epochs=10000, batch_size=100, lr=0.001
+[2021-09-22 16:36:33,268] [main] [INFO] Cuda available: True
+[2021-09-22 16:36:33,330] [train_lstm] [INFO] Loaded dataset data/simulations/2021-09-18_time_series.npz, extracting sequences of length 50, omit_recovered=False
+[2021-09-22 16:36:35,221] [train_lstm] [INFO] Train module autoregressive on 50 instances with parameters: seq_len=0, epochs=2000, batch_size=100, lr=0.001
+[2021-09-22 16:39:59,298] [main] [INFO] Cuda available: True
+[2021-09-22 16:39:59,345] [train_lstm] [INFO] Loaded dataset data/simulations/2021-09-18_time_series.npz, extracting sequences of length 50, omit_recovered=False
+[2021-09-22 16:40:01,157] [train_lstm] [INFO] Train module autoregressive on 50 instances with parameters: seq_len=0, epochs=2000, batch_size=100, lr=0.001
+[2021-09-22 16:44:50,861] [main] [INFO] Cuda available: True
+[2021-09-22 16:44:50,908] [train_lstm] [INFO] Loaded dataset data/simulations/2021-09-18_time_series.npz, extracting sequences of length 50, omit_recovered=False
+[2021-09-22 16:44:52,768] [train_lstm] [INFO] Train module autoregressive on 50 instances with parameters: seq_len=0, epochs=100000, batch_size=100, lr=0.001
+[2021-09-22 17:53:56,824] [main] [INFO] Cuda available: True
+[2021-09-22 17:53:56,871] [train_lstm] [INFO] Loaded dataset data/simulations/2021-09-18_time_series.npz, extracting sequences of length 50, omit_recovered=False
+[2021-09-22 17:56:35,328] [main] [INFO] Cuda available: True
+[2021-09-22 17:56:35,374] [train_lstm] [INFO] Loaded dataset data/simulations/2021-09-18_time_series.npz, extracting sequences of length 50, omit_recovered=False
