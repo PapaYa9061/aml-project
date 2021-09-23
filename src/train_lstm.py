@@ -32,36 +32,31 @@ def normalize(arr):
     return arr
 
 
-def load_dataset(file: str, seq_len=0, omit_recovered=False) -> Tuple[np.ndarray, np.ndarray]:
+def load_dataset(file: str, seq_len=0, warmup=10) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Loads the given simulated time series data of shape (N, L, D) and splits it into features (x_t) and labels (x_t+1).
+    Loads the given simulated time series data of shape (L, N, D) and splits it into features (x_t) and labels (x_t+1).
     From each of the N time series all sequences of length seq_len are extracted.
     If seq_len <= 0, it defaults to L-1, i.e. each complete time series is turned into one training sequence.
     :param omit_recovered:
     :param file:
     :param seq_len:
-    :return: x - numpy array of dimensions (N * (L-seq_len), seq_len, D)
-            y - numpy array of dimensions (N * (L-seq_len), seq_len, 3) with [S, I, R] vector as label
+    :return: x - numpy array of dimensions (seq_len, N * (L-seq_len), D)
+            y - numpy array of dimensions (seq_len, N * (L-seq_len), 3) with [S, I, R] vector as label
     """
     arr = normalize(np.load(file)['arr_0'])
     N, L, D = arr.shape
-    d = 3
     if seq_len <= 0:
         seq_len = L - 1
-    if omit_recovered:
-        d = 2
-        D = 5
-        arr = np.delete(arr, 2, 2)
-    logging.info('Loaded dataset %s, extracting sequences of length %s, omit_recovered=%s', file, seq_len, omit_recovered)
+    logging.info('Loaded dataset %s, extracting sequences of length %s', file, seq_len)
     L_x = (L - seq_len)
     x = np.zeros((N, L_x, seq_len, D))
-    y = np.zeros((N, L_x, seq_len, d))
+    y = np.zeros((N, L_x, seq_len, 3))
     for i in range(L_x):
         x[:, i, :, :] = arr[:, i:i + seq_len, :]
-        y[:, i, :, :] = arr[:, i + 1:i + 1 + seq_len, 0:d]
-    x = x.reshape((N * L_x, seq_len, D))
-    y = y.reshape((N * L_x, seq_len, d))
-    return x, y
+        y[:, i, :, :] = arr[:, i + 1:i + 1 + seq_len, 0:3]
+    x = x.reshape((N * L_x, seq_len, D)).transpose([1, 0, 2])
+    y = y.reshape((N * L_x, seq_len, 3)).transpose([1, 0, 2])
+    return x, y[warmup:]
 
 
 def split_dataset(x: np.ndarray, y: np.ndarray, train: float, validate: float, test: float):
@@ -71,10 +66,12 @@ def split_dataset(x: np.ndarray, y: np.ndarray, train: float, validate: float, t
     return x_train, x_validate, x_test, y_train, y_validate, y_test
 
 
-def split_dataset_deterministic(x: np.ndarray, y: np.ndarray, train: float, validate: float, test:float):
-    N = x.shape[0]
-    return x[:int(train*N)], x[int(train*N):int((train+validate)*N)], x[int((train+validate)*N):int((train+validate+test)*N)], \
-           y[:int(train*N)], y[int(train*N):int((train+validate)*N)], y[int((train+validate)*N):int((train+validate+test)*N)]
+def split_dataset_deterministic(x: np.ndarray, y: np.ndarray, train: float, validate: float, test: float):
+    N = x.shape[1]
+    return x[:, :int(train*N)], x[:, int(train*N):int((train+validate)*N)], \
+           x[:, int((train+validate)*N):int((train+validate+test)*N)], \
+           y[:, :int(train*N)], y[:, int(train*N):int((train+validate)*N)], \
+           y[:, int((train+validate)*N):int((train+validate+test)*N)]
 
 
 def to_torch(*arr):
@@ -95,28 +92,16 @@ def evaluate(model, test_x, test_y):
     return loss(pred, test_y).item()
 
 
-def fit_model(model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor, batch_size=50, lr=1e-3):
-    model.train()
-    loss = torch.nn.MSELoss()
-    optim = torch.optim.Adam(model.parameters(), lr=lr)
-    perm = torch.randperm(x.size()[1], device=device)
-
-    for i in range(0, x.size()[0], batch_size):
-        indices = perm[i:i + batch_size]
-        x_batch, y_batch = x[:, indices, :], y[:, indices, :]
-        model.zero_grad()
-        out, (h_n, c_n) = model(x_batch)
-        err = loss(out, y_batch)
-        err.backward()
-        optim.step()
-
-
 def train_epochs(named_module: NamedModule, train_x, train_y, validate_x, validate_y, epochs=100,
-                 batch_size=50, lr=1e-3):
+                 batch_size=50, lr=1e-3, lr_factor=0.1, patience=100):
     save_every = 10
     model = named_module.module
     if torch.cuda.is_available():
         model.cuda()
+
+    loss = torch.nn.MSELoss()
+    optim = torch.optim.Adam(model.parameters(), lr=lr)
+    sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, factor=lr_factor, patience=patience)
 
     with open(f'data/training/{datetime.datetime.now().isoformat(timespec="minutes").replace(":", "-")}'
               f'_{named_module.name}.csv', 'w', newline='') as csv_file:
@@ -125,12 +110,46 @@ def train_epochs(named_module: NamedModule, train_x, train_y, validate_x, valida
 
         start = time.perf_counter()
         for i in tqdm(range(epochs), 'Training epochs'):
-            fit_model(model, train_x, train_y, batch_size=batch_size, lr=lr)
+            model.train()
+            perm = torch.randperm(train_x.size()[1], device=device)
+            for b in range(0, train_x.size()[0], batch_size):
+                indices = perm[b:b + batch_size]
+                x_batch, y_batch = train_x[:, indices, :], train_y[:, indices, :]
+                model.zero_grad()
+                out, (h_n, c_n) = model(x_batch)
+                err = loss(out, y_batch)
+                err.backward()
+                optim.step()
+            model.eval()
             train_loss = evaluate(model, train_x, train_y)
             validate_loss = evaluate(model, validate_x, validate_y)
+            sched.step(validate_loss)
+
             writer.writerow([i, train_loss, validate_loss, time.perf_counter() - start])
             if i % save_every == 0:
                 named_module.save()
+
+
+def train_silent(model, train_x, train_y, validate_x, validate_y, epochs=100, batch_size=50, lr=1e-3, lr_factor=0.1, patience=100):
+
+    loss = torch.nn.MSELoss()
+    optim = torch.optim.Adam(model.parameters(), lr=lr)
+    sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, factor=lr_factor, patience=patience)
+
+    for i in range(epochs):
+        model.train()
+        perm = torch.randperm(train_x.size()[1], device=device)
+        for b in range(0, train_x.size()[0], batch_size):
+            indices = perm[b:b + batch_size]
+            x_batch, y_batch = train_x[:, indices, :], train_y[:, indices, :]
+            model.zero_grad()
+            out, (h_n, c_n) = model(x_batch)
+            err = loss(out, y_batch)
+            err.backward()
+            optim.step()
+        model.eval()
+        validate_loss = evaluate(model, validate_x, validate_y)
+        sched.step(validate_loss)
 
 
 def train(module: NamedModule, x_train: torch.Tensor, y_train: torch.Tensor,
@@ -144,23 +163,3 @@ def train(module: NamedModule, x_train: torch.Tensor, y_train: torch.Tensor,
     except BaseException as e:
         logging.error('Unhandled exception during training.', exc_info=e)
         raise e
-
-
-# Evaluation
-
-def predict_series(model: torch.nn.Module, series: torch.Tensor, given_steps=10, input_all=False):
-    pred = torch.zeros((series.size()[0], series.size()[1], series.size()[2]), device=device)
-    pred[:, 0:series.size()[1], -3:] = series[:, :, -3:]
-    pred[:, series.size()[1]:, -3:] = series[:, -2:-1, -3:]
-    pred[:, 0:given_steps, :] = series[:, 0:given_steps, :]
-    for i in range(pred.size()[1] - given_steps):
-        input_start = 0 if input_all else i
-        out, (h_n, c_n) = model(pred[:, input_start:i + given_steps, :])
-        pred[:, i + given_steps:i + given_steps + 1, :-3] = out[:, -1:, :]
-    return pred[:, :, :-3]
-
-
-def ps_loss(model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor, given_steps=10, input_all=False):
-    loss = torch.nn.MSELoss()
-    pred = predict_series(model, x, given_steps, input_all)
-    return loss(pred, y).item()

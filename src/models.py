@@ -53,18 +53,14 @@ class AutoRegressiveLSTM(jit.ScriptModule):
         c0 = torch.zeros(input.size()[1], self.hidden_size, dtype=input.dtype, device=input.device)
         state = (h0, c0)
 
-        pred = jit.annotate(List[torch.Tensor], [y[0]])
+        pred = jit.annotate(List[torch.Tensor], [])
         out = jit.annotate(torch.Tensor, torch.zeros_like(y[0]))
         for t in range(self.warmup):
             out, state = self.lstm_cell(torch.cat((y[t], p[t]), dim=1), state)
-            pred.append(out)
 
         y.append(out)
 
-        # For simplicity, we skip the last prediction.
-        # This is more convenient, as the output series is then as long as the input series,
-        # which eases further processing.
-        for t in range(self.warmup, len(p)-1):
+        for t in range(self.warmup, len(p)):
             out, state = self.lstm_cell(torch.cat((y[t], p[t]), dim=1), state)
             y.append(out)
             pred.append(out)

@@ -1,18 +1,15 @@
 # Code extract from
 # https://github.com/pytorch/pytorch/blob/master/benchmarks/fastrnns/custom_lstms.py
 # See also: https://pytorch.org/blog/optimizing-cuda-rnn-with-torchscript/
-# LSTMCell is adapted here to provide a projection from hidden state to output
+# LSTMCell is extended here with (recurrent) projections, as suggested in https://arxiv.org/pdf/1402.1128.pdf
+
+import math
+from typing import Tuple
 
 import torch
-import torch.nn as nn
-from torch.nn import Parameter
 import torch.jit as jit
-import warnings
-from collections import namedtuple
-from typing import List, Tuple
 from torch import Tensor
-import numbers
-import math
+from torch.nn import Parameter
 
 
 class LSTMCell(jit.ScriptModule):
@@ -45,19 +42,4 @@ class LSTMCell(jit.ScriptModule):
         hy = outgate * torch.tanh(cy)
         hy = torch.mm(hy, self.proj.t())
 
-        return hy, (hy, cy) # out, (hy, cy)
-
-
-class LSTMLayer(jit.ScriptModule):
-    def __init__(self, cell, *cell_args):
-        super(LSTMLayer, self).__init__()
-        self.cell = cell(*cell_args)
-
-    @jit.script_method
-    def forward(self, input: Tensor, state: Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tuple[Tensor, Tensor]]:
-        inputs = input.unbind(0)
-        outputs = torch.jit.annotate(List[Tensor], [])
-        for i in range(len(inputs)):
-            out, state = self.cell(inputs[i], state)
-            outputs += [out]
-        return torch.stack(outputs), state
+        return hy, (hy, cy)
