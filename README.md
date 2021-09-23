@@ -49,7 +49,7 @@ Later points are optional and will be tackled as long as our time budget of ~90 
 - [ ] Report: Related work (Yannick/Falk)
 - [x] Report: Method - Network based simulation (Fabian)
 
-Next meeting: Thu, 18:00
+Next meeting: Fri, 18:00
 
 
 ## Notes

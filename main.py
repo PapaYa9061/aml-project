@@ -27,12 +27,12 @@ def load_or_train(name):
         module = NamedModule.load(name)
     except:
         module = NamedModule(AutoRegressiveLSTM(6, 100, 3, warmup=warmup), name)
-        train_epochs(module, x_train, y_train, x_validate, y_validate, epochs=50_000, batch_size=100, lr=1e-4, lr_factor=0.99, patience=100000)
+        train_epochs(module, x_train, y_train, x_validate, y_validate, epochs=50_000, batch_size=100, lr=0.0035, lr_factor=0.1, patience=559)
     return module
 
 
 if __name__ == '__main__':
-    name = 'autoregressive_long_ignorewarmup'
+    name = 'autoregressive_opt_params'
 
     logging.basicConfig(filename=f'logs/{name}.log',
                         filemode='a', format='[%(asctime)s] [%(module)s] [%(levelname)s] %(message)s',
