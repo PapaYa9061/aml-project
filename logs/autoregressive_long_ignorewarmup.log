@@ -1,0 +1,12 @@
+[2021-09-23 17:07:39,797] [main] [INFO] Cuda available: True
+[2021-09-23 17:07:39,868] [train_lstm] [INFO] Loaded dataset data/simulations/2021-09-18_time_series.npz, extracting sequences of length 59
+[2021-09-23 17:24:24,044] [main] [INFO] Cuda available: True
+[2021-09-23 17:24:24,106] [train_lstm] [INFO] Loaded dataset data/simulations/2021-09-18_time_series.npz, extracting sequences of length 59
+[2021-09-23 17:27:13,067] [main] [INFO] Cuda available: True
+[2021-09-23 17:27:13,131] [train_lstm] [INFO] Loaded dataset data/simulations/2021-09-18_time_series.npz, extracting sequences of length 59
+[2021-09-23 17:27:51,628] [main] [INFO] Cuda available: True
+[2021-09-23 17:27:51,689] [train_lstm] [INFO] Loaded dataset data/simulations/2021-09-18_time_series.npz, extracting sequences of length 59
+[2021-09-23 17:28:59,010] [main] [INFO] Cuda available: True
+[2021-09-23 17:28:59,073] [train_lstm] [INFO] Loaded dataset data/simulations/2021-09-18_time_series.npz, extracting sequences of length 59
+[2021-09-23 17:29:33,381] [main] [INFO] Cuda available: True
+[2021-09-23 17:29:33,441] [train_lstm] [INFO] Loaded dataset data/simulations/2021-09-18_time_series.npz, extracting sequences of length 59
