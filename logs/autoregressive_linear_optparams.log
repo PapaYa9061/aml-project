@@ -1,0 +1,6 @@
+[2021-09-25 23:14:29,647] [main] [INFO] Cuda available: True
+[2021-09-25 23:14:29,912] [train_lstm] [INFO] Loaded dataset data/simulations/2021-09-24_time_series.npz, extracting sequences of length 199
+[2021-09-26 02:46:21,931] [main] [INFO] Cuda available: True
+[2021-09-26 02:46:22,191] [train_lstm] [INFO] Loaded dataset data/simulations/2021-09-24_time_series.npz, extracting sequences of length 199
+[2021-09-26 02:47:28,303] [main] [INFO] Cuda available: True
+[2021-09-26 02:47:28,560] [train_lstm] [INFO] Loaded dataset data/simulations/2021-09-24_time_series.npz, extracting sequences of length 199

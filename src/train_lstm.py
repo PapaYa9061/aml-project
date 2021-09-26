@@ -16,8 +16,8 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def subsample(samples: int, *arr):
     result = []
+    indices = np.random.default_rng().permutation(np.arange(arr[0].shape[1]))[:samples]
     for a in arr:
-        indices = np.random.default_rng().permutation(np.arange(a.shape[1]))[:samples]
         a = a[:, indices, :]
         result.append(a)
     if len(result) == 1:
@@ -49,12 +49,12 @@ def load_dataset(file: str, seq_len=0, warmup=10) -> Tuple[np.ndarray, np.ndarra
         seq_len = L - 1
     logging.info('Loaded dataset %s, extracting sequences of length %s', file, seq_len)
     L_x = (L - seq_len)
-    x = np.zeros((N, L_x, seq_len, D))
+    x = np.zeros((N, L_x, seq_len+1, D))
     y = np.zeros((N, L_x, seq_len, 3))
     for i in range(L_x):
-        x[:, i, :, :] = arr[:, i:i + seq_len, :]
+        x[:, i, :, :] = arr[:, i:i + 1 + seq_len, :]
         y[:, i, :, :] = arr[:, i + 1:i + 1 + seq_len, 0:3]
-    x = x.reshape((N * L_x, seq_len, D)).transpose([1, 0, 2])
+    x = x.reshape((N * L_x, seq_len+1, D)).transpose([1, 0, 2])
     y = y.reshape((N * L_x, seq_len, 3)).transpose([1, 0, 2])
     return x, y[warmup:]
 
@@ -85,23 +85,28 @@ def to_torch(*arr):
 
 # Training
 
+_mse_loss = torch.nn.MSELoss()
+
+def loss_fn(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    pred = pred.transpose(0, 1)
+    target = target.transpose(0, 1)
+    return _mse_loss(pred, target)
+
+
 def evaluate(model, test_x, test_y):
     model.eval()
-    loss = torch.nn.MSELoss()
     pred, (h_n, c_n) = model(test_x)
-    return loss(pred, test_y).item()
+    return loss_fn(pred, test_y).item()
 
 
 def train_epochs(named_module: NamedModule, train_x, train_y, validate_x, validate_y, epochs=100,
-                 batch_size=50, lr=1e-3, lr_factor=0.1, patience=100):
-    save_every = 10
+                 batch_size=50, lr=1e-3, beta1=0.9, beta2=0.999):
     model = named_module.module
     if torch.cuda.is_available():
         model.cuda()
 
-    loss = torch.nn.MSELoss()
-    optim = torch.optim.Adam(model.parameters(), lr=lr)
-    sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, factor=lr_factor, patience=patience)
+    optim = torch.optim.Adam(model.parameters(), lr=lr, betas=(beta1, beta2))
+    best_validation = float('inf')
 
     with open(f'data/training/{datetime.datetime.now().isoformat(timespec="minutes").replace(":", "-")}'
               f'_{named_module.name}.csv', 'w', newline='') as csv_file:
@@ -117,24 +122,28 @@ def train_epochs(named_module: NamedModule, train_x, train_y, validate_x, valida
                 x_batch, y_batch = train_x[:, indices, :], train_y[:, indices, :]
                 model.zero_grad()
                 out, (h_n, c_n) = model(x_batch)
-                err = loss(out, y_batch)
+                err = loss_fn(out, y_batch)
                 err.backward()
                 optim.step()
             model.eval()
             train_loss = evaluate(model, train_x, train_y)
             validate_loss = evaluate(model, validate_x, validate_y)
-            sched.step(validate_loss)
+            if validate_loss > 100:
+                logging.warning("High validation loss: %s. Gradient has probably exploded. Aborting training.",
+                                validate_loss)
+                return
 
             writer.writerow([i, train_loss, validate_loss, time.perf_counter() - start])
-            if i % save_every == 0:
+            if validate_loss < best_validation:
+                best_validation = validate_loss
                 named_module.save()
 
 
-def train_silent(model, train_x, train_y, validate_x, validate_y, epochs=100, batch_size=50, lr=1e-3, lr_factor=0.1, patience=100):
+def train_silent(model, train_x, train_y, validate_x, validate_y, epochs=100, batch_size=50, lr=1e-3, beta1=0.9, beta2=0.999):
 
-    loss = torch.nn.MSELoss()
-    optim = torch.optim.Adam(model.parameters(), lr=lr)
-    sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, factor=lr_factor, patience=patience)
+    loss = loss_fn
+    optim = torch.optim.Adam(model.parameters(), lr=lr, betas=(beta1, beta2))
+    #sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, factor=lr_factor, patience=patience)
 
     for i in range(epochs):
         model.train()
@@ -148,8 +157,8 @@ def train_silent(model, train_x, train_y, validate_x, validate_y, epochs=100, ba
             err.backward()
             optim.step()
         model.eval()
-        validate_loss = evaluate(model, validate_x, validate_y)
-        sched.step(validate_loss)
+        #validate_loss = evaluate(model, validate_x, validate_y)
+        #sched.step(validate_loss)
 
 
 def train(module: NamedModule, x_train: torch.Tensor, y_train: torch.Tensor,
