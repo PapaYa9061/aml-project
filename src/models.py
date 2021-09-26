@@ -66,3 +66,40 @@ class AutoRegressiveLSTM(jit.ScriptModule):
             pred.append(out)
 
         return torch.stack(pred), state
+
+
+class AutoRegressiveLinear(jit.ScriptModule):
+
+    def __init__(self, hidden_size, output_size, warmup=10):
+        super().__init__()
+        assert (warmup >= 1)
+        self.lstm_cell = custom_lstm.LSTMCell(6, hidden_size, output_size)
+        self.linear = torch.nn.Linear(output_size, 3)
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+        self.warmup = warmup
+
+    @jit.script_method
+    def forward(self, input: Tensor) -> Tuple[Tensor, Tuple[Tensor, Tensor]]:
+        y = input[:self.warmup, :, :3].unbind(0)
+        p = input[:, :, 3:].unbind(0)
+
+        h0 = torch.zeros(input.size()[1], self.output_size, dtype=input.dtype, device=input.device)
+        # h0 = y[0]
+        c0 = torch.zeros(input.size()[1], self.hidden_size, dtype=input.dtype, device=input.device)
+        state = (h0, c0)
+
+        pred = jit.annotate(List[torch.Tensor], [])
+        out = jit.annotate(torch.Tensor, torch.zeros((y[0].size()[0], self.output_size)))
+        for t in range(self.warmup):
+            out, state = self.lstm_cell(torch.cat((y[t], p[t+1]), dim=1), state)
+
+        y.append(self.linear(out))
+
+        for t in range(self.warmup, len(p)-1):
+            out, state = self.lstm_cell(torch.cat((y[t], p[t+1]), dim=1), state)
+            out = self.linear(out)
+            y.append(out)
+            pred.append(out)
+
+        return torch.stack(pred), state
