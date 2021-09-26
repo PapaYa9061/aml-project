@@ -115,9 +115,9 @@ class Simulation:
 
     def get_state(self):
         '''output: [S,I,R]'''
-        return [torch.sum(self.is_suscep == 1),
-                torch.sum(self.is_infected == 1),
-                torch.sum((self.is_infected == 0) & (self.is_suscep == 0)),
+        return [torch.sum(self.is_suscep == 1).item(),
+                torch.sum(self.is_infected == 1).item(),
+                torch.sum((self.is_infected == 0) & (self.is_suscep == 0)).item(),
                 #self.pop_size,
                 self.D(),
                 self.transmission_prob(),

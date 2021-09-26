@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import time
 
 
 def build_random_adj_matrix(size, D, plot_deg_dist=False):
@@ -165,8 +166,8 @@ class Simulation:
 
 if __name__ == "__main__":
 
-    pop_size = 2000
-    D = 9
+    pop_size = 10000
+    D = 12
     trans_prob = 0.05
     days_infected = 14
     
@@ -178,11 +179,58 @@ if __name__ == "__main__":
         "lifting_threshold": 0.1
     }
 
-    build_random_adj_matrix(pop_size, D, True)
+    '''
+    example_mat1 = build_random_adj_matrix(pop_size, D)
+    example_mat2 = build_random_adj_matrix(pop_size, 14)
+
+    plt.grid(axis="y")
+    plt.hist(np.sum(example_mat1, axis=0),
+            bins=np.arange(0.5, 3*D+0.5, 1),density=True,alpha=0.5,label="D=9")
+    plt.hist(np.sum(example_mat2, axis=0),
+            bins=np.arange(0.5, 3*D+0.5, 1),density=True,alpha=0.5,label="D=14")
+    plt.xlabel("degree")
+    plt.ylabel("percentage of nodes")
+    plt.legend()
+    plt.show()
+    '''
+    #fig, ax = plt.subplots(nrows=1,ncols=2,sharey=True,figsize=(12,5))
+    #fig.subplots_adjust(wspace=0)
+    
+    sim = Simulation(pop_size, D, trans_prob, days_infected, counter_measure_params=counter_measure_parameters)
+    sim.infect_random(3)
+    t1 = time.time()
+    sim.step(200)
+    t2 = time.time()
+
+    print(t2-t1)
+    '''
+    result = np.array(sim.time_series)[:,0:3]
+    ax[0].grid()
+    ax[0].plot(result[:,0],color="blue",label="S")
+    ax[0].plot(result[:,1],color="red",label="I")
+    ax[0].plot(result[:,2],color="green",label="R")
+    ax[0].set_xlabel("t steps")
+    ax[0].set_ylabel("number of nodes")
+    
+    counter_measure_parameters= {
+        "soc_dist_threshold": 0.03,
+        "soc_dist_effect": 0.2,
+        "sanitary_measures_threshold": 0.03,
+        "sanitary_measures_effect": 0.2,
+        "lifting_threshold": 0.1
+    }
 
     sim = Simulation(pop_size, D, trans_prob, days_infected, counter_measure_params=counter_measure_parameters)
     sim.infect_random(3)
     sim.step(200)
 
-    plt.plot(sim.time_series)
+    result = np.array(sim.time_series)[:,0:3]
+    ax[1].grid()
+    ax[1].plot(result[:,0],color="blue",label="S")
+    ax[1].plot(result[:,1],color="red",label="I")
+    ax[1].plot(result[:,2],color="green",label="R")
+    ax[1].legend()
+    ax[1].set_xlabel("t steps")
+
     plt.show()
+    '''
